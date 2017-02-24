@@ -115,6 +115,18 @@ index 7a92debbf39a1cd3e9f911971025d0f5b35f2834..6d76992c6b88ba228e927246848f042a
  }
  
  if (enable_resource_whitelist_generation) {
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 20224cad4705c218cf50a3245251b88792ef13bb..5b62a77a09415b62870d3bcb9bd8dfc1bbfad50c 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -3451,6 +3451,7 @@ split_static_library("browser") {
+       "//device/battery",
+       "//net:net_browser_services",
+     ]
++    include_dirs = [ "//electron" ]
+   }
+ 
+   if (!is_chrome_branded) {
 diff --git a/chrome/browser/chrome_content_browser_manifest_overlay.json b/chrome/browser/chrome_content_browser_manifest_overlay.json
 index b338e51b1b571b9a345f65880b72f5a80b34c8bd..234c7247990310bf12b853dd562f22e810eca9cb 100644
 --- a/chrome/browser/chrome_content_browser_manifest_overlay.json
@@ -174,6 +186,22 @@ index b77fbdeea3cd28ead065828c3fffb19496f80ab8..84cc634ccd9e24733674775bb1752d8d
 +    //                        weak_factory_.GetWeakPtr(), base::Passed(&params)));
      return;
    }
+ 
+diff --git a/chrome/browser/importer/external_process_importer_client.h b/chrome/browser/importer/external_process_importer_client.h
+index 33a76574bb9ebc02e595edbeca9e522cb1cf5d67..14d2ddcbadb7c116f1b25b335efea66b12bbe339 100644
+--- a/chrome/browser/importer/external_process_importer_client.h
++++ b/chrome/browser/importer/external_process_importer_client.h
+@@ -97,6 +97,11 @@ class ExternalProcessImporterClient
+   void OnAutofillFormDataImportGroup(
+       const std::vector<ImporterAutofillFormDataEntry>&
+           autofill_form_data_entry_group) override;
++  void OnCookiesImportStart(
++      uint32_t total_cookies_count) override;
++  void OnCookiesImportGroup(
++      const std::vector<ImportedCookieEntry>&
++          cookies_group) override;
+   void OnIE7PasswordReceived(
+       const importer::ImporterIE7PasswordInfo& importer_password_info) override;
  
 diff --git a/chrome/browser/plugins/chrome_plugin_service_filter.cc b/chrome/browser/plugins/chrome_plugin_service_filter.cc
 index 1783a101aa024a5aa39a7bd7c335427398d47093..ac11311d78e2271f9ca7f6016c79a37de078621c 100644
@@ -684,6 +712,17 @@ index f0a0bcd0098ec31b18bb00588ad8fd11b439fd6f..888572f87a71e6e8444bd6a302343e45
  #define LASTCHANGE_STRING "@LASTCHANGE@"
 +
 +#define EXECUTABLE_NAME "@EXECUTABLE_NAME@"
+diff --git a/chrome/common/importer/BUILD.gn b/chrome/common/importer/BUILD.gn
+index 905bddcd622791be18efafe41dcf86a52578d92e..47922ee7575a64b6afd95b5082015e5336b1cc4e 100644
+--- a/chrome/common/importer/BUILD.gn
++++ b/chrome/common/importer/BUILD.gn
+@@ -14,4 +14,6 @@ mojom("interfaces") {
+     "//mojo/common:common_custom_types",
+     "//url/mojo:url_mojom_gurl",
+   ]
++
++  import_dirs = [ "//electron" ]
+ }
 diff --git a/chrome/common/importer/edge_importer_utils_win.cc b/chrome/common/importer/edge_importer_utils_win.cc
 index c2abd64b2d7c5166c1fdbaaf782974cb4bcc5e53..eb59bbe098dabd0edd3d9d8e24befe1006e56b8b 100644
 --- a/chrome/common/importer/edge_importer_utils_win.cc
@@ -747,7 +786,7 @@ index c172f8a5bc534465ff4d063a52f9bb510b7e36af..437026ae26eec5dce80edb73929a0fbc
  #if defined(OS_MACOSX)
    TYPE_SAFARI          = 3,
 diff --git a/chrome/common/importer/profile_import.mojom b/chrome/common/importer/profile_import.mojom
-index f366a941273f0807405743f1365fdaf3a549cddc..778242bf05581de0ecb76bdc218aa90a1c58acb7 100644
+index f366a941273f0807405743f1365fdaf3a549cddc..35d5a90c778adfa67597866c31a91bc79dad3ab6 100644
 --- a/chrome/common/importer/profile_import.mojom
 +++ b/chrome/common/importer/profile_import.mojom
 @@ -16,6 +16,9 @@ struct ImportedBookmarkEntry;
@@ -760,6 +799,41 @@ index f366a941273f0807405743f1365fdaf3a549cddc..778242bf05581de0ecb76bdc218aa90a
  struct SearchEngineInfo;
  
  [Native]
+@@ -63,6 +66,8 @@ interface ProfileImportObserver {
+   OnAutofillFormDataImportStart(uint32 total_autofill_form_data_entry_count);
+   OnAutofillFormDataImportGroup(
+       array<ImporterAutofillFormDataEntry> autofill_form_data_entry_group);
++  OnCookiesImportStart(uint32 total_cookies_count);
++  OnCookiesImportGroup(array<ImportedCookieEntry> cookies_group);
+   // Windows only:
+   OnIE7PasswordReceived(ImporterIE7PasswordInfo importer_password_info);
+ };
+diff --git a/chrome/common/importer/profile_import.typemap b/chrome/common/importer/profile_import.typemap
+index 6283f2bf6871a10f710694772b5da0bc9b70c2ad..263c6f5914079cfe9f16baff9a1f9274453fc37f 100644
+--- a/chrome/common/importer/profile_import.typemap
++++ b/chrome/common/importer/profile_import.typemap
+@@ -9,6 +9,7 @@ public_headers = [
+   "//chrome/common/importer/importer_data_types.h",
+   "//chrome/common/importer/importer_url_row.h",
+   "//components/favicon_base/favicon_usage_data.h",
++  "//electron/brave/common/importer/imported_cookie_entry.h",
+ ]
+ traits_headers =
+     [ "//chrome/common/importer/profile_import_process_param_traits.h" ]
+@@ -16,6 +17,7 @@ deps = [
+   "//chrome/common",
+   "//components/favicon_base",
+   "//ipc",
++  "//electron:common",
+ ]
+ type_mappings = [
+   "chrome.mojom.FaviconUsageDataList=::favicon_base::FaviconUsageDataList",
+@@ -26,4 +28,5 @@ type_mappings = [
+   "chrome.mojom.SearchEngineInfo=::importer::SearchEngineInfo",
+   "chrome.mojom.SourceProfile=::importer::SourceProfile",
+   "chrome.mojom.ImportItem=::importer::ImportItem",
++  "chrome.mojom.ImportedCookieEntry=::ImportedCookieEntry",
+ ]
 diff --git a/chrome/common/importer/profile_import_process_param_traits_macros.h b/chrome/common/importer/profile_import_process_param_traits_macros.h
 index eb4b00d6ed6af19c4fc998e81dab735db63484e9..152b643afe66ccda1644fcff4e2a976e4a83174b 100644
 --- a/chrome/common/importer/profile_import_process_param_traits_macros.h
@@ -901,7 +975,7 @@ index f4c663410bbd3c725314ef44cc0246bb4be54846..2d463dac157dc6ce4e5e1062bd3274c4
  
    if (enable_extensions) {
 diff --git a/chrome/utility/importer/external_process_importer_bridge.cc b/chrome/utility/importer/external_process_importer_bridge.cc
-index 38a8e7a41bf771a59fdb3d227243b88c5b85b8d0..5d50f863edd4e99c424f8e555c8a34feb62459fc 100644
+index 38a8e7a41bf771a59fdb3d227243b88c5b85b8d0..c3db151f0f5d2303a8f76ecf5b2ffb8f52bdc5d7 100644
 --- a/chrome/utility/importer/external_process_importer_bridge.cc
 +++ b/chrome/utility/importer/external_process_importer_bridge.cc
 @@ -28,6 +28,7 @@ const int kNumBookmarksToSend = 100;
@@ -912,14 +986,13 @@ index 38a8e7a41bf771a59fdb3d227243b88c5b85b8d0..5d50f863edd4e99c424f8e555c8a34fe
  
  } // namespace
  
-@@ -160,6 +161,30 @@ void ExternalProcessImporterBridge::SetAutofillFormData(
+@@ -160,6 +161,28 @@ void ExternalProcessImporterBridge::SetAutofillFormData(
    DCHECK_EQ(0, autofill_form_data_entries_left);
  }
  
 +void ExternalProcessImporterBridge::SetCookies(
 +    const std::vector<ImportedCookieEntry>& cookies) {
-+  Send(new ProfileImportProcessHostMsg_NotifyCookiesImportStart(
-+      cookies.size()));
++  (*observer_)->OnCookiesImportStart(cookies.size());
 +
 +  // |cookies_left| is required for the checks below as Windows has a
 +  // Debug bounds-check which prevents pushing an iterator beyond its end()
@@ -932,8 +1005,7 @@ index 38a8e7a41bf771a59fdb3d227243b88c5b85b8d0..5d50f863edd4e99c424f8e555c8a34fe
 +        it + std::min(cookies_left, kNumCookiesToSend);
 +    cookies_group.assign(it, end_group);
 +
-+    Send(new ProfileImportProcessHostMsg_NotifyCookiesImportGroup(
-+        cookies_group));
++    (*observer_)->OnCookiesImportGroup(cookies_group);
 +    cookies_left -= end_group - it;
 +    it = end_group;
 +  }
@@ -1167,38 +1239,126 @@ index 3679499793de374f62b6feba53e9e24d33933f71..d15a1f68a5ab39c4c1208cbbf3e2bae8
  IPC_MESSAGE_ROUTED1(PrintHostMsg_PrintPreviewCancelled,
                      int /* document cookie */)
 diff --git a/components/printing/renderer/print_web_view_helper.cc b/components/printing/renderer/print_web_view_helper.cc
-index 2ac27ae18143c519df658c84abda7c51c2db8eaa..1108a082dc7cb6f241020e7f20150ad49e07ac86 100644
+index 2ac27ae18143c519df658c84abda7c51c2db8eaa..a0806579a84fa62e73ae1ccf011802a4d122d0fa 100644
 --- a/components/printing/renderer/print_web_view_helper.cc
 +++ b/components/printing/renderer/print_web_view_helper.cc
-@@ -323,7 +323,6 @@ bool PrintingNodeOrPdfFrame(const blink::WebLocalFrame* frame,
+@@ -323,29 +323,27 @@ bool PrintingNodeOrPdfFrame(const blink::WebLocalFrame* frame,
    return plugin && plugin->supportsPaginatedPrint();
  }
  
 -#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
  // Returns true if the current destination printer is PRINT_TO_PDF.
- bool IsPrintToPdfRequested(const base::DictionaryValue& job_settings) {
-   bool print_to_pdf = false;
-@@ -345,7 +344,6 @@ bool PrintingFrameHasPageSizeStyle(blink::WebLocalFrame* frame,
-   }
-   return frame_has_custom_page_size_style;
- }
+-bool IsPrintToPdfRequested(const base::DictionaryValue& job_settings) {
+-  bool print_to_pdf = false;
+-  if (!job_settings.GetBoolean(kSettingPrintToPDF, &print_to_pdf))
+-    NOTREACHED();
+-  return print_to_pdf;
+-}
+-
+-bool PrintingFrameHasPageSizeStyle(blink::WebLocalFrame* frame,
+-                                   int total_page_count) {
+-  if (!frame)
+-    return false;
+-  bool frame_has_custom_page_size_style = false;
+-  for (int i = 0; i < total_page_count; ++i) {
+-    if (frame->hasCustomPageSizeStyle(i)) {
+-      frame_has_custom_page_size_style = true;
+-      break;
+-    }
+-  }
+-  return frame_has_custom_page_size_style;
+-}
 -#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
++// bool IsPrintToPdfRequested(const base::DictionaryValue& job_settings) {
++//   bool print_to_pdf = false;
++//   if (!job_settings.GetBoolean(kSettingPrintToPDF, &print_to_pdf))
++//     NOTREACHED();
++//   return print_to_pdf;
++// }
++
++// bool PrintingFrameHasPageSizeStyle(blink::WebLocalFrame* frame,
++//                                    int total_page_count) {
++//   if (!frame)
++//     return false;
++//   bool frame_has_custom_page_size_style = false;
++//   for (int i = 0; i < total_page_count; ++i) {
++//     if (frame->hasCustomPageSizeStyle(i)) {
++//       frame_has_custom_page_size_style = true;
++//       break;
++//     }
++//   }
++//   return frame_has_custom_page_size_style;
++// }
  
  #if BUILDFLAG(ENABLE_PRINTING)
  // Disable scaling when either:
-@@ -401,7 +399,6 @@ MarginType GetMarginsForPdf(blink::WebLocalFrame* frame,
+@@ -401,14 +399,13 @@ MarginType GetMarginsForPdf(blink::WebLocalFrame* frame,
  }
  #endif
  
 -#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
- bool FitToPageEnabled(const base::DictionaryValue& job_settings) {
-   bool fit_to_paper_size = false;
-   if (!job_settings.GetBoolean(kSettingFitToPageEnabled, &fit_to_paper_size)) {
-@@ -444,7 +441,6 @@ blink::WebPrintScalingOption GetPrintScalingOption(
-   }
-   return blink::WebPrintScalingOptionFitToPrintableArea;
- }
+-bool FitToPageEnabled(const base::DictionaryValue& job_settings) {
+-  bool fit_to_paper_size = false;
+-  if (!job_settings.GetBoolean(kSettingFitToPageEnabled, &fit_to_paper_size)) {
+-    NOTREACHED();
+-  }
+-  return fit_to_paper_size;
+-}
++// bool FitToPageEnabled(const base::DictionaryValue& job_settings) {
++//   bool fit_to_paper_size = false;
++//   if (!job_settings.GetBoolean(kSettingFitToPageEnabled, &fit_to_paper_size)) {
++//     NOTREACHED();
++//   }
++//   return fit_to_paper_size;
++// }
+ 
+ // Returns the print scaling option to retain/scale/crop the source page size
+ // to fit the printable area of the paper.
+@@ -424,27 +421,26 @@ bool FitToPageEnabled(const base::DictionaryValue& job_settings) {
+ // option is disabled for initiator renderer plugin.
+ //
+ // In all other cases, we scale the source page to fit the printable area.
+-blink::WebPrintScalingOption GetPrintScalingOption(
+-    blink::WebLocalFrame* frame,
+-    const blink::WebNode& node,
+-    bool source_is_html,
+-    const base::DictionaryValue& job_settings,
+-    const PrintMsg_Print_Params& params) {
+-  if (params.print_to_pdf)
+-    return blink::WebPrintScalingOptionSourceSize;
+-
+-  if (!source_is_html) {
+-    if (!FitToPageEnabled(job_settings))
+-      return blink::WebPrintScalingOptionNone;
+-
+-    bool no_plugin_scaling = PDFShouldDisableScaling(frame, node, params,
+-                                                     true);
+-    if (params.is_first_request && no_plugin_scaling)
+-      return blink::WebPrintScalingOptionNone;
+-  }
+-  return blink::WebPrintScalingOptionFitToPrintableArea;
+-}
 -#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
++// blink::WebPrintScalingOption GetPrintScalingOption(
++//     blink::WebLocalFrame* frame,
++//     const blink::WebNode& node,
++//     bool source_is_html,
++//     const base::DictionaryValue& job_settings,
++//     const PrintMsg_Print_Params& params) {
++//   if (params.print_to_pdf)
++//     return blink::WebPrintScalingOptionSourceSize;
++
++//   if (!source_is_html) {
++//     if (!FitToPageEnabled(job_settings))
++//       return blink::WebPrintScalingOptionNone;
++
++//     bool no_plugin_scaling = PDFShouldDisableScaling(frame, node, params,
++//                                                      true);
++//     if (params.is_first_request && no_plugin_scaling)
++//       return blink::WebPrintScalingOptionNone;
++//   }
++//   return blink::WebPrintScalingOptionFitToPrintableArea;
++// }
  
  // Helper function to scale and round an integer value with a double valued
  // scaling.
@@ -1642,10 +1802,20 @@ index 2ac27ae18143c519df658c84abda7c51c2db8eaa..1108a082dc7cb6f241020e7f20150ad4
  PrintWebViewHelper::PrintPreviewContext::PrintPreviewContext()
      : total_page_count_(0),
 diff --git a/components/printing/renderer/print_web_view_helper.h b/components/printing/renderer/print_web_view_helper.h
-index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26cea6570f 100644
+index e603411a8784068311074447e3dcad2177ce2d5e..397f73881a99a7d404ae6e21ac8c82748e280bbe 100644
 --- a/components/printing/renderer/print_web_view_helper.h
 +++ b/components/printing/renderer/print_web_view_helper.h
-@@ -185,8 +185,8 @@ class PrintWebViewHelper
+@@ -145,9 +145,7 @@ class PrintWebViewHelper
+     OK,
+     FAIL_PRINT_INIT,
+     FAIL_PRINT,
+-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+     FAIL_PREVIEW,
+-#endif
+   };
+ 
+   enum PrintPreviewErrorBuckets {
+@@ -185,8 +183,8 @@ class PrintWebViewHelper
  #endif  // BUILDFLAG(ENABLE_BASIC_PRINTING)
  #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
    void OnInitiatePrintPreview(bool has_selection);
@@ -1655,7 +1825,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
    void OnPrintingDone(bool success);
  
    // Get |page_size| and |content_area| information from
-@@ -199,7 +199,6 @@ class PrintWebViewHelper
+@@ -199,7 +197,6 @@ class PrintWebViewHelper
    // Update |ignore_css_margins_| based on settings.
    void UpdateFrameMarginsCssInfo(const base::DictionaryValue& settings);
  
@@ -1663,7 +1833,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
    // Prepare frame for creating preview document.
    void PrepareFrameForPreviewDocument();
  
-@@ -216,7 +215,6 @@ class PrintWebViewHelper
+@@ -216,7 +213,6 @@ class PrintWebViewHelper
  
    // Finalize the print ready preview document.
    bool FinalizePrintReadyDocument();
@@ -1671,7 +1841,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
  
    // Enable/Disable printing.
    void OnSetPrintingEnabled(bool enabled);
-@@ -250,6 +248,7 @@ class PrintWebViewHelper
+@@ -250,6 +246,7 @@ class PrintWebViewHelper
    // Set options for print preset from source PDF document.
    bool SetOptionsFromPdfDocument(
        PrintHostMsg_SetOptionsFromDocument_Params* options);
@@ -1679,7 +1849,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
  
    // Update the current print settings with new |passed_job_settings|.
    // |passed_job_settings| dictionary contains print job details such as printer
-@@ -257,7 +256,6 @@ class PrintWebViewHelper
+@@ -257,7 +254,6 @@ class PrintWebViewHelper
    bool UpdatePrintSettings(blink::WebLocalFrame* frame,
                             const blink::WebNode& node,
                             const base::DictionaryValue& passed_job_settings);
@@ -1687,7 +1857,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
  
  #if BUILDFLAG(ENABLE_BASIC_PRINTING)
    // Get final print settings from the user.
-@@ -362,6 +360,7 @@ class PrintWebViewHelper
+@@ -362,6 +358,7 @@ class PrintWebViewHelper
    // WARNING: |this| may be gone after this method returns when |type| is
    // PRINT_PREVIEW_SCRIPTED.
    void RequestPrintPreview(PrintPreviewRequestType type);
@@ -1695,7 +1865,7 @@ index e603411a8784068311074447e3dcad2177ce2d5e..9080327bb9f2eb6c9bf0274d21be7b26
  
    // Checks whether print preview should continue or not.
    // Returns true if canceling, false if continuing.
-@@ -373,7 +372,6 @@ class PrintWebViewHelper
+@@ -373,7 +370,6 @@ class PrintWebViewHelper
    // |metafile| is the rendered page. Otherwise |metafile| is NULL.
    // Returns true if print preview should continue, false on failure.
    bool PreviewPageRendered(int page_number, PdfMetafileSkia* metafile);
@@ -2280,7 +2450,7 @@ index 6bfee912323849e8a0ef3aac93819a8100dceaae..8593ca020a20b1043b23d7e0e6073562
  
  }  // namespace blink
 diff --git a/third_party/WebKit/Source/core/dom/DOMArrayBufferBase.h b/third_party/WebKit/Source/core/dom/DOMArrayBufferBase.h
-index 74738dade2b75b3659e21f2cf97f4a3cfd0d477e..028723b3463b63acc636e27fc7fa7fbd96986bc0 100644
+index 74738dade2b75b3659e21f2cf97f4a3cfd0d477e..115e410ea378654673dd8295b23d14ec68f8f825 100644
 --- a/third_party/WebKit/Source/core/dom/DOMArrayBufferBase.h
 +++ b/third_party/WebKit/Source/core/dom/DOMArrayBufferBase.h
 @@ -21,9 +21,24 @@ class CORE_EXPORT DOMArrayBufferBase
@@ -2311,7 +2481,7 @@ index 74738dade2b75b3659e21f2cf97f4a3cfd0d477e..028723b3463b63acc636e27fc7fa7fbd
    bool transfer(WTF::ArrayBufferContents& result) {
      return buffer()->transfer(result);
    }
-@@ -43,11 +58,18 @@ class CORE_EXPORT DOMArrayBufferBase
+@@ -43,11 +58,26 @@ class CORE_EXPORT DOMArrayBufferBase
  
   protected:
    explicit DOMArrayBufferBase(PassRefPtr<WTF::ArrayBuffer> buffer)
@@ -2324,6 +2494,14 @@ index 74738dade2b75b3659e21f2cf97f4a3cfd0d477e..028723b3463b63acc636e27fc7fa7fbd
      DCHECK(m_buffer);
    }
  
++  DOMArrayBufferBase(void* source, unsigned byteLength)
++      : m_buffer(WTF::ArrayBuffer::create(source, byteLength)),
++        m_isExternal(true),
++        m_source(source),
++        m_byteLength(byteLength)
++  {
++  }
++
    RefPtr<WTF::ArrayBuffer> m_buffer;
 +  bool m_isExternal;
 +  void* m_source;
@@ -2437,3 +2615,16 @@ index 8b40b1ab1e7ac238cb695cb177fae873e7cf9eb3..2dd34a2c5c10f03374de80fd97ddf296
        ]
        #TODO(jrummell) Mac: 'DYLIB_INSTALL_NAME_BASE': '@loader_path',
      } else if (is_posix && !is_mac) {
+diff --git a/ui/gfx/vector_icons/BUILD.gn b/ui/gfx/vector_icons/BUILD.gn
+index d0676ddd0106873586376f8fc7562858021ea505..8da8ca807d6d7ac730762083e2c6274826a85884 100644
+--- a/ui/gfx/vector_icons/BUILD.gn
++++ b/ui/gfx/vector_icons/BUILD.gn
+@@ -108,7 +108,7 @@ action("aggregate_vector_icons") {
+     "web.icon",
+     "zoom_minus.icon",
+     "zoom_plus.icon",
+-    "${branding_path_component}/product.icon",
++    # "${branding_path_component}/product.icon",
+   ]
+ 
+   output_cc = "$target_gen_dir/vector_icons.cc"
