@@ -639,6 +639,152 @@ void WebContents::AutofillPopupHidden() {
     autofillClient->PopupHidden();
 }
 
+void WebContents::WillAttachCallback(guest_view::GuestViewBase* guest) {
+//  guest->DidAttach(MSG_ROUTING_NONE);
+}
+
+void WebContents::AttachGuest(mate::Arguments* args) {
+  v8::Locker locker(isolate());
+  v8::HandleScope handle_scope(isolate());
+  LOG(ERROR) << "AttachGuest: 1";
+
+  auto browser_context = web_contents()->GetBrowserContext();
+
+  int guest_instance_id;
+  if (!args->GetNext(&guest_instance_id)) {
+    args->ThrowError("`guest_instance_id` is a required field");
+    return;
+  }
+  LOG(ERROR) << "AttachGuest: 2";
+
+  auto guest_view_manager =
+      static_cast<GuestViewManager*>(browser_context->GetGuestManager());
+
+  if (!guest_view_manager) {
+    args->ThrowError("No guest view manager");
+    return;
+  }
+  LOG(ERROR) << "AttachGuest: 3";
+
+  brave::TabViewGuest* guest =
+        brave::TabViewGuest::FromWebContents(web_contents());
+
+  LOG(ERROR) << "AttachGuest: 4";
+
+  if (!guest) {
+    args->ThrowError("No guest attached");
+    return;
+  }
+
+  if (!guest_delegate_) {
+    args->ThrowError("No guest delegate");
+    return;
+  }
+
+  int embedder_process_id =
+    guest_delegate_->embedder_web_contents()
+      ->GetMainFrame()->GetProcess()->GetID();
+
+  base::DictionaryValue attach_params;
+
+  // guest_view_manager->DetachGuest(guest);
+
+  auto attaching_guest_web_contents =
+    guest_view_manager->GetGuestByInstanceIDSafely(
+      guest_instance_id, embedder_process_id);
+  brave::TabViewGuest* guest2 =
+    brave::TabViewGuest::FromWebContents(attaching_guest_web_contents);
+
+  // <-- TODO: try changing this back to guest->view_instance_id();
+  int view_instance_id = guest2->view_instance_id();
+  int element_instance_id = guest->element_instance_id();
+  LOG(ERROR) << "Attach: view_instance_id:" << view_instance_id;
+  attach_params.SetInteger(guest_view::kParameterInstanceId, view_instance_id);
+
+  /*
+  */
+
+  // LOG(ERROR) << "Attaching guest element: guest_instance_id:"
+  //   << attaching_guest->guest_instance_id();
+  LOG(ERROR) << "Attach: embedder_processId:" << embedder_process_id;
+  LOG(ERROR) << "Attach: element_instance_id :" << element_instance_id;
+  LOG(ERROR) << "Attach: guest_instance_id:" << guest_instance_id;
+
+  guest_view_manager->AttachGuest(embedder_process_id,
+    element_instance_id,
+    guest_instance_id,
+    attach_params);
+
+  ////////
+  /*
+  guest2->WillAttach(
+    owner_web_contents, element_instance_id, false,
+    base::Bind(&WebContents::WillAttachCallback, this, guest2));
+    */
+
+  // TODO: I think view_instance_id is probably wrong, shoudl be render_frame_id????
+  auto* embedder_frame = content::RenderFrameHost::FromID(
+    embedder_process_id, guest->view_instance_id());
+   content::WebContents* owner_web_contents = guest->owner_web_contents();
+   LOG(ERROR) << "Owner web contents same as this? " << (owner_web_contents == web_contents());
+
+  /*
+  content::WebContents* owner_web_contents = guest2->owner_web_contents();
+  DCHECK(owner_web_contents);
+  */
+
+
+
+  auto attaching_guest_web_contents2 =
+    guest_view_manager->GetGuestByInstanceIDSafely(
+      guest_instance_id, embedder_process_id);
+
+
+  // Attach this inner WebContents |guest_web_contents| to the outer
+  // WebContents |owner_web_contents|. The outer WebContents's
+  // frame |embedder_frame| hosts the inner WebContents.
+  // NOTE: this must be called last, because it could unblock pending requests
+  // which depend on the WebViewGuest being initialized which happens above.
+  attaching_guest_web_contents2->AttachToOuterWebContentsFrame(owner_web_contents,
+                                                embedder_frame);
+  ////////
+}
+
+void WebContents::DetachGuest(mate::Arguments* args) {
+  v8::Locker locker(isolate());
+  v8::HandleScope handle_scope(isolate());
+
+  auto browser_context = web_contents()->GetBrowserContext();
+
+  auto guest_view_manager =
+      static_cast<GuestViewManager*>(browser_context->GetGuestManager());
+
+  if (!guest_view_manager) {
+    args->ThrowError("No guest view manager");
+    return;
+  }
+
+  brave::TabViewGuest* guest =
+        brave::TabViewGuest::FromWebContents(web_contents());
+
+  if (!guest) {
+    args->ThrowError("No guest attached");
+    return;
+  }
+
+  guest_view_manager->DetachGuest(guest);
+
+  /*
+  base::Callback<void (content::WebContents *)> empty_callback;
+  base::DictionaryValue create_params;
+  mate::Dictionary options;
+  guest_view_manager->CreateGuest(brave::TabViewGuest::Type,
+    HostWebContents(), create_params,
+    base::Bind(&WebContents::OnTabCreated,
+      base::Unretained(this), options, empty_callback));
+      */
+}
+
 content::WebContents* WebContents::OpenURLFromTab(
     content::WebContents* source,
     const content::OpenURLParams& params) {
@@ -2150,6 +2296,8 @@ void WebContents::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("close", &WebContents::CloseContents)
       .SetMethod("autofillSelect", &WebContents::AutofillSelect)
       .SetMethod("autofillPopupHidden", &WebContents::AutofillPopupHidden)
+      .SetMethod("attachGuest", &WebContents::AttachGuest)
+      .SetMethod("detachGuest", &WebContents::DetachGuest)
       .SetProperty("session", &WebContents::Session)
       .SetProperty("guestInstanceId", &WebContents::GetGuestInstanceId)
       .SetProperty("hostWebContents", &WebContents::HostWebContents)
@@ -2229,10 +2377,12 @@ void WebContents::OnTabCreated(const mate::Dictionary& options,
                     user_gesture,
                     &was_blocked);
 
-  if (was_blocked)
-    callback.Run(nullptr);
-  else
-    callback.Run(tab);
+  if (!callback.is_null()) {
+    if (was_blocked)
+      callback.Run(nullptr);
+    else
+      callback.Run(tab);
+  }
 }
 
 // static

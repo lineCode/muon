@@ -117,6 +117,7 @@ WebViewImpl.prototype.getTabID = function (instanceId, cb) {
 
 const attachWindow = WebViewImpl.prototype.attachWindow$
 WebViewImpl.prototype.attachWindow$ = function(opt_guestInstanceId) {
+  console.log('----web_view_api_binding.js: WebViewImpl.prototype.attachWindow$')
   if (this.guest.getId() === opt_guestInstanceId && this.guest.getState() === GuestViewImpl.GuestState.GUEST_STATE_ATTACHED) {
     console.log('ID is the same so bailing', opt_guestInstanceId)
     return
@@ -148,6 +149,7 @@ WebViewImpl.prototype.attachWindow$ = function(opt_guestInstanceId) {
 }
 
 WebViewImpl.prototype.detachGuest = function () {
+  console.log('----web_view_api_binding.js: WebViewImpl.prototype.detachGuest')
   console.log('detachGuest1', this.guest.getState())
   if (this.guest.getState() === GuestViewImpl.GuestState.GUEST_STATE_ATTACHED) {
     console.log('detachGuest2')
