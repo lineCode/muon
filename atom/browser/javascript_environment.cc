@@ -12,6 +12,7 @@
 #include "base/command_line.h"
 #include "base/i18n/icu_util.h"
 #include "base/message_loop/message_loop.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/public/common/content_switches.h"
 #include "gin/array_buffer.h"
 #include "gin/v8_initializer.h"
@@ -63,7 +64,9 @@ v8::Local<v8::ObjectTemplate> RunnerDelegate::GetGlobalTemplate(
 
 JavascriptEnvironment::JavascriptEnvironment()
     : initialized_(Initialize()),
-      isolate_(isolate_holder_.isolate()),
+      isolate_holder_(
+        new gin::IsolateHolder(base::ThreadTaskRunnerHandle::Get())),
+      isolate_(isolate_holder_->isolate()),
       locker_(isolate_),
       runner_(new gin::ShellRunner(&delegate_, isolate_)),
       scope_(runner_.get()),
@@ -90,11 +93,11 @@ JavascriptEnvironment::~JavascriptEnvironment() {
 }
 
 void JavascriptEnvironment::OnMessageLoopCreated() {
-  isolate_holder_.AddRunMicrotasksObserver();
+  isolate_holder_->AddRunMicrotasksObserver();
 }
 
 void JavascriptEnvironment::OnMessageLoopDestroying() {
-  isolate_holder_.RemoveRunMicrotasksObserver();
+  isolate_holder_->RemoveRunMicrotasksObserver();
 }
 
 bool JavascriptEnvironment::Initialize() {

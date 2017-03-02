@@ -77,8 +77,6 @@ int64_t AtomContentUtilityClient::max_ipc_message_size_ =
 
 AtomContentUtilityClient::AtomContentUtilityClient()
     : filter_messages_(false) {
-  handlers_.push_back(new ProfileImportHandler());
-
 #if defined(ENABLE_PRINT_PREVIEW) || \
     (defined(ENABLE_BASIC_PRINTING) && defined(OS_WIN))
   handlers_.push_back(new printing::PrintingHandler());
@@ -135,6 +133,7 @@ void AtomContentUtilityClient::ExposeInterfacesToBrowser(
   registry->AddInterface<net::interfaces::ProxyResolverFactory>(
       base::Bind(CreateProxyResolverFactory));
   registry->AddInterface(base::Bind(CreateResourceUsageReporter));
+  registry->AddInterface(base::Bind(&ProfileImportHandler::Create));
 }
 
 // static
